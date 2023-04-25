@@ -14,45 +14,42 @@
  	<h1>PDO vulnerable a SQL injection</h1>
  
  	<?php
- 		// sql injection possible:
- 		// coses'); drop table test;'select 
-		if( isset($_POST["user"])) {
+	if (isset($_POST["user"]) && isset($_POST["password"])) {
+    $dbhost = $_ENV["DB_HOST"];
+    $dbname = $_ENV["DB_NAME"];
+    $dbuser = $_ENV["DB_USER"];
+    $dbpass = $_ENV["DB_PASSWORD"];
 
-			$dbhost = $_ENV["DB_HOST"];
-			$dbname = $_ENV["DB_NAME"];
-			$dbuser = $_ENV["DB_USER"];
-			$dbpass = $_ENV["DB_PASSWORD"];
+    try {
+        $pdo = new PDO("mysql:host=$dbhost;dbname=$dbname", $dbuser, $dbpass);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-			# Connectem a MySQL (host,usuari,contrassenya)
-			$pdo = new PDO("mysql:host=$dbhost;dbname=$dbname",$dbuser,$dbpass);
-	 
-			$username = $_POST["user"];
-			$pass = $_POST["password"];
-			# (2.1) creem el string de la consulta (query)
-			$qstr = "SELECT * FROM users WHERE name='$username' AND password=SHA2('$pass',512);";
-			$consulta = $pdo->prepare($qstr);
+        $username = trim($_POST["user"]);
+        $pass = trim($_POST["password"]);
 
-			# mostrem la SQL query per veure el què s'executarà (a mode debug)
-			echo "<br>$qstr<br>";
+        if (empty($username) || empty($pass)) {
+            throw new Exception("Username and password are required.");
+        }
 
-			# Enviem la query al SGBD per obtenir el resultat
-			$consulta->execute();
-	 
-			# Gestió d'errors
-			if( $consulta->errorInfo()[1] ) {
-				echo "<p>ERROR: ".$consulta->errorInfo()[2]."</p>\n";
-				die;
-			}
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE name = :username AND password = SHA2(:pass, 512)");
+        $stmt->bindValue(':username', $username);
+        $stmt->bindValue(':pass', $pass);
+        $stmt->execute();
 
-			if( $consulta->rowCount() >= 1 )
-				# hi ha 1 resultat o més d'usuaris amb nom i password
-				foreach( $consulta as $user ) {
-					echo "<div class='user'>Hola ".$user["name"]." (".$user["role"].").</div>";
-				}
-			else
-				echo "<div class='user'>No hi ha cap usuari amb aquest nom o contrasenya.</div>";
-		}
- 	?>
+        if ($stmt->rowCount() >= 1) {
+            foreach ($stmt as $user) {
+                echo "<div class='user'>Hola " . htmlspecialchars($user["name"], ENT_QUOTES) . " (" . htmlspecialchars($user["role"], ENT_QUOTES) . ").</div>";
+            }
+        } else {
+            echo "<div class='user'>No hi ha cap usuari amb aquest nom o contrasenya.</div>";
+        }
+    } catch (PDOException $e) {
+        echo "<p>ERROR: " . $e->getMessage() . "</p>\n";
+    } catch (Exception $e) {
+        echo "<p>ERROR: " . $e->getMessage() . "</p>\n";
+    }
+}
+?>
  	
  	<fieldset>
  	<legend>Login form</legend>
